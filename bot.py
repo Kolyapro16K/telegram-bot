@@ -9,6 +9,18 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from flask import Flask
 import threading
 
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Токен бота
+TOKEN = "7731941666:AAEgb1zKlsef7WjMfC0rD_5RnGhnZkdDg2s"
+
+# Создаем бота
+bot = Bot(token=TOKEN)
+storage = MemoryStorage()
+dp = Dispatcher(storage=storage)
+
 # Создаём веб-сервер для Render
 web_app = Flask(__name__)
 
@@ -18,18 +30,6 @@ def health_check():
 
 def run_web():
     web_app.run(host='0.0.0.0', port=10000)
-
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Токен бота (замените на свой)
-TOKEN = "7731941666:AAEgb1zKlsef7WjMfC0rD_5RnGhnZkdDg2s"
-
-# Создаем бота
-bot = Bot(token=TOKEN)
-storage = MemoryStorage()
-dp = Dispatcher(storage=storage)
 
 # Определяем состояния
 class States(StatesGroup):
@@ -78,10 +78,8 @@ def calculate(num1, base1, num2, base2, op, result_base):
             xa //= 10
             p += 1
         return -res if x < 0 else res
-    
     d1 = to_dec(num1, base1)
     d2 = to_dec(num2, base2)
-    
     if op == '+':
         res = d1 + d2
     elif op == '-':
@@ -92,10 +90,8 @@ def calculate(num1, base1, num2, base2, op, result_base):
         if d2 == 0:
             return "Ошибка: деление на 0"
         res = d1 // d2
-    
     if res == 0:
         return "0"
-    
     digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     result = ""
     ra = abs(res)
@@ -132,6 +128,7 @@ def safe_int(s):
     except (ValueError, TypeError):
         return None
 
+# Обработчики команд
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     await message.answer(
@@ -297,17 +294,19 @@ async def handle_message(message: Message, state: FSMContext):
         await message.answer(f"❌ Ошибка: {str(e)}", reply_markup=main_keyboard)
         await state.clear()
 
-def main():
+# ГЛАВНАЯ ФУНКЦИЯ (ИСПРАВЛЕНА)
+async def main():
     # Запускаем веб-сервер в отдельном потоке
     web_thread = threading.Thread(target=run_web, daemon=True)
     web_thread.start()
     
-    # Запускаем бота
     print("🚀 Бот запущен!")
-    print(f"🤖 Бот: @{asyncio.run(bot.get_me()).username}")
+    me = await bot.get_me()
+    print(f"✅ Бот: @{me.username}")
     print("🎯 Готов к работе!")
     
-    dp.start_polling(bot)
+    # Запускаем бота
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
