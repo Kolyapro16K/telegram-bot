@@ -294,7 +294,7 @@ async def handle_message(message: Message, state: FSMContext):
         await message.answer(f"❌ Ошибка: {str(e)}", reply_markup=main_keyboard)
         await state.clear()
 
-# ГЛАВНАЯ ФУНКЦИЯ (ИСПРАВЛЕНА)
+# ГЛАВНАЯ ФУНКЦИЯ (ОБЯЗАТЕЛЬНО async def)
 async def main():
     # Запускаем веб-сервер в отдельном потоке
     web_thread = threading.Thread(target=run_web, daemon=True)
