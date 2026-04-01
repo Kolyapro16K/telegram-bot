@@ -6,6 +6,18 @@ from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
+from flask import Flask
+import threading
+
+# Создаём веб-сервер для Render
+web_app = Flask(__name__)
+
+@web_app.route('/')
+def health_check():
+    return "Bot is running!"
+
+def run_web():
+    web_app.run(host='0.0.0.0', port=10000)
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -285,17 +297,17 @@ async def handle_message(message: Message, state: FSMContext):
         await message.answer(f"❌ Ошибка: {str(e)}", reply_markup=main_keyboard)
         await state.clear()
 
-async def main():
+def main():
+    # Запускаем веб-сервер в отдельном потоке
+    web_thread = threading.Thread(target=run_web, daemon=True)
+    web_thread.start()
+    
+    # Запускаем бота
     print("🚀 Бот запущен!")
-    try:
-        me = await bot.get_me()
-        print(f"✅ Бот: @{me.username}")
-        print("🎯 Готов к работе!")
-        await dp.start_polling(bot, handle_signals=False)
-    except Exception as e:
-        print(f"❌ Ошибка: {e}")
-    finally:
-        await bot.session.close()
+    print(f"🤖 Бот: @{asyncio.run(bot.get_me()).username}")
+    print("🎯 Готов к работе!")
+    
+    dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
