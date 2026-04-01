@@ -44,61 +44,83 @@ class States(StatesGroup):
     arithmetic_second_base = State()
     arithmetic_result_base = State()
 
-# Функции перевода
-def from_decimal(num, base):
-    if num == 0:
+# ============ НОВЫЕ ФУНКЦИИ ДЛЯ РАБОТЫ С HEX ============
+
+def validate_number_for_base(number_str, base):
+    """Проверяет, что строка числа корректна для заданной системы счисления"""
+    if not number_str:
+        return False
+    
+    # Символы для систем счисления до 36
+    valid_chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    valid_chars = valid_chars[:base]
+    
+    # Проверяем каждый символ
+    for char in number_str.upper():
+        if char not in valid_chars:
+            return False
+    return True
+
+def convert_to_decimal(number_str, base):
+    """Перевод числа из любой системы в десятичную (поддерживает буквы A-F)"""
+    if not number_str:
+        raise ValueError("Пустое число")
+    
+    number_str = number_str.upper().strip()
+    result = 0
+    power = 0
+    
+    # Проходим по символам справа налево
+    for char in reversed(number_str):
+        if char.isdigit():
+            digit = int(char)
+        else:
+            # Буквы A=10, B=11, и т.д.
+            digit = ord(char) - ord('A') + 10
+        
+        if digit >= base:
+            raise ValueError(f"Цифра {char} недопустима для системы {base}")
+        
+        result += digit * (base ** power)
+        power += 1
+    
+    return result
+
+def convert_from_decimal(number, base):
+    """Перевод из десятичной системы в любую (результат может содержать буквы A-F)"""
+    if number == 0:
         return "0"
+    
     digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     result = ""
-    n = abs(num)
+    n = abs(number)
+    
     while n > 0:
         result = digits[n % base] + result
         n //= base
-    return ("-" if num < 0 else "") + result
+    
+    return ("-" if number < 0 else "") + result
 
-def to_decimal(num, base):
-    if num == 0:
-        return 0
-    result = 0
-    power = 0
-    n = abs(num)
-    while n > 0:
-        result += (n % 10) * (base ** power)
-        n //= 10
-        power += 1
-    return -result if num < 0 else result
-
-def calculate(num1, base1, num2, base2, op, result_base):
-    def to_dec(x, b):
-        res = 0
-        p = 0
-        xa = abs(x)
-        while xa > 0:
-            res += (xa % 10) * (b ** p)
-            xa //= 10
-            p += 1
-        return -res if x < 0 else res
-    d1 = to_dec(num1, base1)
-    d2 = to_dec(num2, base2)
-    if op == '+':
-        res = d1 + d2
-    elif op == '-':
-        res = d1 - d2
-    elif op == '*':
-        res = d1 * d2
-    else:
-        if d2 == 0:
-            return "Ошибка: деление на 0"
-        res = d1 // d2
-    if res == 0:
-        return "0"
-    digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    result = ""
-    ra = abs(res)
-    while ra > 0:
-        result = digits[ra % result_base] + result
-        ra //= result_base
-    return ("-" if res < 0 else "") + result
+def calculate_arithmetic(num1_str, base1, num2_str, base2, operation, result_base):
+    """Арифметические операции с поддержкой HEX"""
+    # Преобразуем в десятичную
+    dec1 = convert_to_decimal(num1_str, base1)
+    dec2 = convert_to_decimal(num2_str, base2)
+    
+    # Выполняем операцию
+    if operation == '+':
+        result_dec = dec1 + dec2
+    elif operation == '-':
+        result_dec = dec1 - dec2
+    elif operation == '*':
+        result_dec = dec1 * dec2
+    else:  # деление
+        if dec2 == 0:
+            raise ValueError("Деление на ноль!")
+        result_dec = dec1 // dec2
+    
+    # Преобразуем результат в нужную систему
+    return convert_from_decimal(result_dec, result_base)
 
 # Клавиатуры
 main_keyboard = ReplyKeyboardMarkup(
@@ -121,6 +143,7 @@ operation_keyboard = ReplyKeyboardMarkup(
 )
 
 def safe_int(s):
+    """Безопасное преобразование в целое число"""
     try:
         if isinstance(s, str):
             s = s.strip()
@@ -134,6 +157,9 @@ async def cmd_start(message: Message):
     await message.answer(
         "👋 Добро пожаловать!\n\n"
         "Я бот для перевода чисел и арифметических операций.\n"
+        "✅ Поддерживаю системы счисления от 2 до 36\n"
+        "✅ Буквы A-F для шестнадцатеричной системы\n"
+        "✅ Проверяю корректность ввода\n\n"
         "Выберите действие:",
         reply_markup=main_keyboard
     )
@@ -141,12 +167,18 @@ async def cmd_start(message: Message):
 @dp.message(Command("help"))
 async def cmd_help(message: Message):
     await message.answer(
-        "📌 Доступные команды:\n"
+        "📌 **Доступные команды:**\n"
         "/start - главное меню\n\n"
-        "📝 Примеры:\n"
+        "📝 **Примеры:**\n"
         "• Из десятичной: 42 → 2 → 101010\n"
-        "• В десятичную: 1010 (2) → 10\n"
-        "• Арифметика: 101 (2) + 10 (8) → 13",
+        "• Из десятичной: 255 → 16 → FF\n"
+        "• В десятичную: FF → 16 → 255\n"
+        "• В десятичную: 1010 → 2 → 10\n"
+        "• Арифметика: FF (16) + 10 (16) → 10 → 265\n\n"
+        "⚠️ **Важно:**\n"
+        "• Для систем >10 используйте буквы A-F\n"
+        "• Буквы можно вводить в любом регистре\n"
+        "• Недопустимые символы будут отклонены",
         reply_markup=main_keyboard
     )
 
@@ -158,15 +190,24 @@ async def handle_message(message: Message, state: FSMContext):
     # Обработка кнопок меню
     if text == "📤 Из десятичной":
         await state.set_state(States.from_decimal_number)
-        await message.answer("Введите число:", reply_markup=types.ReplyKeyboardRemove())
+        await message.answer(
+            "Введите десятичное число (целое):",
+            reply_markup=types.ReplyKeyboardRemove()
+        )
         return
     elif text == "📥 В десятичную":
         await state.set_state(States.to_decimal_number)
-        await message.answer("Введите число:", reply_markup=types.ReplyKeyboardRemove())
+        await message.answer(
+            "Введите число (цифры и буквы A-F):",
+            reply_markup=types.ReplyKeyboardRemove()
+        )
         return
     elif text == "🧮 Арифметика":
         await state.set_state(States.arithmetic_first)
-        await message.answer("Введите первое число:", reply_markup=types.ReplyKeyboardRemove())
+        await message.answer(
+            "Введите первое число (цифры и буквы A-F):",
+            reply_markup=types.ReplyKeyboardRemove()
+        )
         return
     elif text == "❓ Помощь":
         await cmd_help(message)
@@ -180,7 +221,7 @@ async def handle_message(message: Message, state: FSMContext):
         if current_state == States.from_decimal_number.state:
             num = safe_int(text)
             if num is None:
-                await message.answer("❌ Введите целое число!")
+                await message.answer("❌ Ошибка! Введите целое число (например: 42, 255, 1000).")
                 return
             await state.update_data(number=num)
             await state.set_state(States.from_decimal_base)
@@ -189,61 +230,97 @@ async def handle_message(message: Message, state: FSMContext):
         elif current_state == States.from_decimal_base.state:
             base = safe_int(text)
             if base is None or base < 2 or base > 36:
-                await message.answer("❌ Введите число от 2 до 36!")
+                await message.answer("❌ Ошибка! Введите число от 2 до 36.")
                 return
+            
             data = await state.get_data()
-            result = from_decimal(data['number'], base)
-            await message.answer(f"✅ Результат: {result}", reply_markup=main_keyboard)
+            number = data.get('number')
+            
+            try:
+                result = convert_from_decimal(number, base)
+                await message.answer(
+                    f"✅ Результат:\n{number} (дес.) → {result} (сист.{base})",
+                    reply_markup=main_keyboard
+                )
+            except Exception as e:
+                await message.answer(f"❌ Ошибка: {str(e)}", reply_markup=main_keyboard)
+            
             await state.clear()
             
         elif current_state == States.to_decimal_number.state:
-            num = safe_int(text)
-            if num is None or num < 0:
-                await message.answer("❌ Введите неотрицательное число!")
+            # Сохраняем число как строку (может содержать буквы)
+            number_str = text.upper().strip()
+            
+            # Проверяем, что строка не пустая
+            if not number_str:
+                await message.answer("❌ Ошибка! Введите число.")
                 return
-            await state.update_data(number=num)
+            
+            # Сохраняем строку, а не число
+            await state.update_data(number_str=number_str)
             await state.set_state(States.to_decimal_base)
-            await message.answer("Введите систему счисления (2-36):")
+            await message.answer("Введите систему счисления исходного числа (2-36):")
             
         elif current_state == States.to_decimal_base.state:
             base = safe_int(text)
             if base is None or base < 2 or base > 36:
-                await message.answer("❌ Введите число от 2 до 36!")
+                await message.answer("❌ Ошибка! Введите число от 2 до 36.")
                 return
+            
             data = await state.get_data()
-            number = data['number']
+            number_str = data.get('number_str')
             
-            valid = True
-            temp = number
-            while temp > 0:
-                if temp % 10 >= base:
-                    valid = False
-                    break
-                temp //= 10
-            
-            if not valid and number != 0:
-                await message.answer(f"❌ Недопустимые цифры для системы {base}", reply_markup=main_keyboard)
+            # Проверяем корректность ввода для данной системы
+            if not validate_number_for_base(number_str, base):
+                await message.answer(
+                    f"❌ Ошибка! Число '{number_str}' содержит недопустимые символы для системы {base}.\n"
+                    f"В {base}-ичной системе допустимы символы: 0-{base-1 if base <= 10 else '9 и A-' + chr(ord('A') + base - 11)}",
+                    reply_markup=main_keyboard
+                )
                 await state.clear()
                 return
             
-            result = to_decimal(number, base)
-            await message.answer(f"✅ Результат: {result}", reply_markup=main_keyboard)
+            try:
+                result = convert_to_decimal(number_str, base)
+                await message.answer(
+                    f"✅ Результат:\n{number_str} (сист.{base}) → {result} (дес.)",
+                    reply_markup=main_keyboard
+                )
+            except ValueError as e:
+                await message.answer(f"❌ Ошибка: {str(e)}", reply_markup=main_keyboard)
+            except Exception as e:
+                await message.answer(f"❌ Ошибка при переводе: {str(e)}", reply_markup=main_keyboard)
+            
             await state.clear()
             
         elif current_state == States.arithmetic_first.state:
-            num = safe_int(text)
-            if num is None:
-                await message.answer("❌ Введите целое число!")
+            # Сохраняем первое число как строку
+            num1_str = text.upper().strip()
+            if not num1_str:
+                await message.answer("❌ Ошибка! Введите число.")
                 return
-            await state.update_data(num1=num)
+            await state.update_data(num1_str=num1_str)
             await state.set_state(States.arithmetic_first_base)
-            await message.answer("Введите систему первого числа (2-36):")
+            await message.answer("Введите систему счисления первого числа (2-36):")
             
         elif current_state == States.arithmetic_first_base.state:
             base = safe_int(text)
             if base is None or base < 2 or base > 36:
-                await message.answer("❌ Введите число от 2 до 36!")
+                await message.answer("❌ Ошибка! Введите число от 2 до 36.")
                 return
+            
+            data = await state.get_data()
+            num1_str = data.get('num1_str')
+            
+            # Проверяем корректность
+            if not validate_number_for_base(num1_str, base):
+                await message.answer(
+                    f"❌ Ошибка! Число '{num1_str}' содержит недопустимые символы для системы {base}.",
+                    reply_markup=main_keyboard
+                )
+                await state.clear()
+                return
+            
             await state.update_data(base1=base)
             await state.set_state(States.arithmetic_operation)
             await message.answer("Выберите операцию:", reply_markup=operation_keyboard)
@@ -253,48 +330,83 @@ async def handle_message(message: Message, state: FSMContext):
             if text in op_map:
                 await state.update_data(operation=op_map[text])
                 await state.set_state(States.arithmetic_second)
-                await message.answer("Введите второе число:", reply_markup=types.ReplyKeyboardRemove())
+                await message.answer(
+                    "Введите второе число (цифры и буквы A-F):",
+                    reply_markup=types.ReplyKeyboardRemove()
+                )
             else:
                 await message.answer("Выберите операцию из меню!", reply_markup=operation_keyboard)
             
         elif current_state == States.arithmetic_second.state:
-            num = safe_int(text)
-            if num is None:
-                await message.answer("❌ Введите целое число!")
+            num2_str = text.upper().strip()
+            if not num2_str:
+                await message.answer("❌ Ошибка! Введите число.")
                 return
-            await state.update_data(num2=num)
+            await state.update_data(num2_str=num2_str)
             await state.set_state(States.arithmetic_second_base)
-            await message.answer("Введите систему второго числа (2-36):")
+            await message.answer("Введите систему счисления второго числа (2-36):")
             
         elif current_state == States.arithmetic_second_base.state:
             base = safe_int(text)
             if base is None or base < 2 or base > 36:
-                await message.answer("❌ Введите число от 2 до 36!")
+                await message.answer("❌ Ошибка! Введите число от 2 до 36.")
                 return
+            
+            data = await state.get_data()
+            num2_str = data.get('num2_str')
+            
+            if not validate_number_for_base(num2_str, base):
+                await message.answer(
+                    f"❌ Ошибка! Число '{num2_str}' содержит недопустимые символы для системы {base}.",
+                    reply_markup=main_keyboard
+                )
+                await state.clear()
+                return
+            
             await state.update_data(base2=base)
             await state.set_state(States.arithmetic_result_base)
-            await message.answer("Введите систему для результата (2-36):")
+            await message.answer("Введите систему счисления для результата (2-36):")
             
         elif current_state == States.arithmetic_result_base.state:
             res_base = safe_int(text)
             if res_base is None or res_base < 2 or res_base > 36:
-                await message.answer("❌ Введите число от 2 до 36!")
+                await message.answer("❌ Ошибка! Введите число от 2 до 36.")
                 return
+            
             data = await state.get_data()
-            result = calculate(
-                data['num1'], data['base1'],
-                data['num2'], data['base2'],
-                data['operation'], res_base
-            )
-            await message.answer(f"✅ Результат: {result}", reply_markup=main_keyboard)
+            num1_str = data.get('num1_str')
+            base1 = data.get('base1')
+            num2_str = data.get('num2_str')
+            base2 = data.get('base2')
+            operation = data.get('operation')
+            
+            try:
+                result = calculate_arithmetic(num1_str, base1, num2_str, base2, operation, res_base)
+                
+                op_symbol = operation
+                if op_symbol == '/':
+                    op_symbol = '÷'
+                
+                await message.answer(
+                    f"✅ Результат:\n{num1_str} {op_symbol} {num2_str} = {result} (сист.{res_base})",
+                    reply_markup=main_keyboard
+                )
+            except ValueError as e:
+                await message.answer(f"❌ Ошибка: {str(e)}", reply_markup=main_keyboard)
+            except Exception as e:
+                await message.answer(f"❌ Ошибка при вычислении: {str(e)}", reply_markup=main_keyboard)
+            
             await state.clear()
             
     except Exception as e:
-        logger.error(f"Ошибка: {e}")
-        await message.answer(f"❌ Ошибка: {str(e)}", reply_markup=main_keyboard)
+        logger.error(f"Ошибка в обработчике: {e}")
+        await message.answer(
+            f"❌ Произошла ошибка: {str(e)}\nПожалуйста, начните заново с /start",
+            reply_markup=main_keyboard
+        )
         await state.clear()
 
-# ГЛАВНАЯ ФУНКЦИЯ (ОБЯЗАТЕЛЬНО async def)
+# ГЛАВНАЯ ФУНКЦИЯ
 async def main():
     # Запускаем веб-сервер в отдельном потоке
     web_thread = threading.Thread(target=run_web, daemon=True)
