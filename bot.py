@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Токен бота
-TOKEN = "7731941666:AAEgb1zKlsef7WjMfC0rD_5RnGhnZkdDg2s"
+TOKEN = "8332350911:AAGibZDAVfo2IWue-vUAx0WhxKWCXTJmUjw"
 
 # Создаем бота
 bot = Bot(token=TOKEN)
